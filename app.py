@@ -1,4 +1,4 @@
-from flask import Flask, render_template, request, redirect, session, url_for, flash
+from flask import Flask, render_template, request, redirect, session, flash
 import sqlite3
 from datetime import datetime
 
@@ -7,24 +7,35 @@ app.secret_key = "freshfold_secret_key"
 
 DB_NAME = "freshfold.db"
 
-# ---------- DB ----------
-def init_db():
+
+# ---------------- DB ----------------
+def db():
     conn = sqlite3.connect(DB_NAME)
+    conn.row_factory = sqlite3.Row
+    return conn
+
+
+def init_db():
+    conn = db()
     cur = conn.cursor()
+
+    # Enable foreign keys in SQLite
+    cur.execute("PRAGMA foreign_keys = ON;")
 
     cur.execute("""
         CREATE TABLE IF NOT EXISTS users(
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             name TEXT NOT NULL,
             phone TEXT UNIQUE NOT NULL,
-            password TEXT NOT NULL
+            password TEXT NOT NULL,
+            created_at TEXT NOT NULL
         )
     """)
 
     cur.execute("""
         CREATE TABLE IF NOT EXISTS orders(
             id INTEGER PRIMARY KEY AUTOINCREMENT,
-            user_phone TEXT NOT NULL,
+            user_id INTEGER NOT NULL,
             address TEXT NOT NULL,
             pickup_date TEXT NOT NULL,
             pickup_time TEXT NOT NULL,
@@ -35,14 +46,22 @@ def init_db():
             total_price REAL NOT NULL DEFAULT 0,
             payment_method TEXT NOT NULL DEFAULT 'Not Paid',
             status TEXT NOT NULL DEFAULT 'Pending',
-            created_at TEXT NOT NULL
+            created_at TEXT NOT NULL,
+            FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
         )
     """)
+
+    # Indexes (performance)
+    cur.execute("CREATE INDEX IF NOT EXISTS idx_users_phone ON users(phone);")
+    cur.execute("CREATE INDEX IF NOT EXISTS idx_orders_user_id ON orders(user_id);")
+    cur.execute("CREATE INDEX IF NOT EXISTS idx_orders_status ON orders(status);")
+    cur.execute("CREATE INDEX IF NOT EXISTS idx_orders_created_at ON orders(created_at);")
 
     conn.commit()
     conn.close()
 
 
+# ---------------- PRICING ----------------
 def calculate_price(service, weight):
     rates = {
         "Wash": 50,
@@ -50,60 +69,60 @@ def calculate_price(service, weight):
         "Dry Clean": 120
     }
     service_price = rates.get(service, 50) * weight
-
-    delivery_charge = 30
-    if weight > 5:
-        delivery_charge = 50
-
+    delivery_charge = 30 if weight <= 5 else 50
     total_price = service_price + delivery_charge
     return service_price, delivery_charge, total_price
 
 
-def db():
-    return sqlite3.connect(DB_NAME)
-
-
-def get_user_name(phone):
+# ---------------- HELPERS ----------------
+def get_user_by_phone(phone):
     conn = db()
     cur = conn.cursor()
-    cur.execute("SELECT name FROM users WHERE phone=?", (phone,))
-    row = cur.fetchone()
+    cur.execute("SELECT * FROM users WHERE phone=?", (phone,))
+    user = cur.fetchone()
     conn.close()
-    return row[0] if row else "User"
+    return user
 
 
-def get_user_stats(phone):
+def get_logged_user():
+    phone = session.get("user_phone")
+    if not phone:
+        return None
+    return get_user_by_phone(phone)
+
+
+def get_user_stats(user_id):
     conn = db()
     cur = conn.cursor()
 
-    cur.execute("SELECT COUNT(*) FROM orders WHERE user_phone=?", (phone,))
-    total_orders = cur.fetchone()[0]
+    cur.execute("SELECT COUNT(*) AS c FROM orders WHERE user_id=?", (user_id,))
+    total = cur.fetchone()["c"]
 
-    cur.execute("SELECT COUNT(*) FROM orders WHERE user_phone=? AND status='Pending'", (phone,))
-    pending_orders = cur.fetchone()[0]
+    cur.execute("SELECT COUNT(*) AS c FROM orders WHERE user_id=? AND status='Pending'", (user_id,))
+    pending = cur.fetchone()["c"]
 
-    cur.execute("SELECT COUNT(*) FROM orders WHERE user_phone=? AND status='Delivered'", (phone,))
-    delivered_orders = cur.fetchone()[0]
+    cur.execute("SELECT COUNT(*) AS c FROM orders WHERE user_id=? AND status='Delivered'", (user_id,))
+    delivered = cur.fetchone()["c"]
 
     conn.close()
-    return total_orders, pending_orders, delivered_orders
+    return total, pending, delivered
 
 
-def get_last_address(phone):
+def get_last_address(user_id):
     conn = db()
     cur = conn.cursor()
     cur.execute("""
         SELECT address FROM orders
-        WHERE user_phone=?
+        WHERE user_id=?
         ORDER BY id DESC
         LIMIT 1
-    """, (phone,))
+    """, (user_id,))
     row = cur.fetchone()
     conn.close()
-    return row[0] if row else ""
+    return row["address"] if row else ""
 
 
-# ---------- ROUTES ----------
+# ---------------- ROUTES ----------------
 @app.route("/")
 def index():
     return render_template("index.html")
@@ -112,23 +131,31 @@ def index():
 @app.route("/register", methods=["GET", "POST"])
 def register():
     if request.method == "POST":
-        name = request.form["name"].strip()
-        phone = request.form["phone"].strip()
-        password = request.form["password"].strip()
+        name = request.form.get("name", "").strip()
+        phone = request.form.get("phone", "").strip()
+        password = request.form.get("password", "").strip()
+
+        if not name or not phone or not password:
+            flash("All fields are required!", "danger")
+            return redirect("/register")
+
+        created_at = datetime.now().strftime("%d-%m-%Y %I:%M %p")
 
         conn = db()
         cur = conn.cursor()
         try:
-            cur.execute("INSERT INTO users(name, phone, password) VALUES(?,?,?)", (name, phone, password))
+            cur.execute("""
+                INSERT INTO users(name, phone, password, created_at)
+                VALUES(?,?,?,?)
+            """, (name, phone, password, created_at))
             conn.commit()
-        except:
-            conn.close()
+            flash("Registration successful! Please login.", "success")
+            return redirect("/login")
+        except sqlite3.IntegrityError:
             flash("Phone already registered!", "danger")
             return redirect("/register")
-
-        conn.close()
-        flash("Registration successful! Please login.", "success")
-        return redirect("/login")
+        finally:
+            conn.close()
 
     return render_template("register.html")
 
@@ -136,69 +163,65 @@ def register():
 @app.route("/login", methods=["GET", "POST"])
 def login():
     if request.method == "POST":
-        phone = request.form["phone"].strip()
-        password = request.form["password"].strip()
+        phone = request.form.get("phone", "").strip()
+        password = request.form.get("password", "").strip()
 
-        conn = db()
-        cur = conn.cursor()
-        cur.execute("SELECT * FROM users WHERE phone=? AND password=?", (phone, password))
-        user = cur.fetchone()
-        conn.close()
-
-        if user:
+        user = get_user_by_phone(phone)
+        if user and user["password"] == password:
             session["user_phone"] = phone
             flash("Login successful!", "success")
             return redirect("/dashboard")
-        else:
-            flash("Invalid login!", "danger")
-            return redirect("/login")
+
+        flash("Invalid phone or password!", "danger")
+        return redirect("/login")
 
     return render_template("login.html")
 
 
+@app.route("/logout")
+def logout():
+    session.clear()
+    flash("Logged out successfully.", "success")
+    return redirect("/")
+
+
 @app.route("/dashboard")
 def dashboard():
-    if "user_phone" not in session:
+    user = get_logged_user()
+    if not user:
         return redirect("/login")
 
-    phone = session["user_phone"]
-    name = get_user_name(phone)
-    total, pending, delivered = get_user_stats(phone)
-
-    return render_template("dashboard.html", name=name, total=total, pending=pending, delivered=delivered)
+    total, pending, delivered = get_user_stats(user["id"])
+    return render_template("dashboard.html", name=user["name"], total=total, pending=pending, delivered=delivered)
 
 
-# -------- BOOK (now with last address auto-fill) --------
 @app.route("/book", methods=["GET", "POST"])
 def book():
-    if "user_phone" not in session:
+    user = get_logged_user()
+    if not user:
         return redirect("/login")
 
-    phone = session["user_phone"]
-
     if request.method == "POST":
-        address = request.form["address"].strip()
-        pickup_date = request.form["pickup_date"].strip()
-        pickup_time = request.form["pickup_time"].strip()
-        service = request.form["service"].strip()
-        weight = request.form["weight"].strip()
+        address = request.form.get("address", "").strip()
+        pickup_date = request.form.get("pickup_date", "").strip()
+        pickup_time = request.form.get("pickup_time", "").strip()
+        service = request.form.get("service", "").strip()
+        weight_text = request.form.get("weight", "").strip()
 
-        if not address or not pickup_date or not pickup_time or not service or not weight:
+        if not address or not pickup_date or not pickup_time or not service or not weight_text:
             flash("Please fill all fields!", "danger")
             return redirect("/book")
 
         try:
-            weight = float(weight)
+            weight = float(weight_text)
             if weight <= 0:
                 raise ValueError
         except:
             flash("Enter valid weight!", "danger")
             return redirect("/book")
 
-        # calculate bill
         service_price, delivery_charge, total_price = calculate_price(service, weight)
 
-        # store in session as "pending order"
         session["pending_order"] = {
             "address": address,
             "pickup_date": pickup_date,
@@ -212,67 +235,62 @@ def book():
 
         return redirect("/payment")
 
-    # GET
-    last_address = get_last_address(phone)
+    last_address = get_last_address(user["id"])
     return render_template("book.html", last_address=last_address)
 
 
-# -------- PAYMENT --------
 @app.route("/payment", methods=["GET", "POST"])
 def payment():
-    if "user_phone" not in session:
+    user = get_logged_user()
+    if not user:
         return redirect("/login")
 
-    if "pending_order" not in session:
+    pending = session.get("pending_order")
+    if not pending:
         flash("No pending order found. Please book again.", "danger")
         return redirect("/book")
 
-    order = session["pending_order"]
-
     if request.method == "POST":
-        payment_method = request.form["payment_method"].strip()
+        method = request.form.get("payment_method", "Cash on Delivery").strip()
         created_at = datetime.now().strftime("%d-%m-%Y %I:%M %p")
 
         conn = db()
         cur = conn.cursor()
         cur.execute("""
             INSERT INTO orders(
-                user_phone, address, pickup_date, pickup_time,
+                user_id, address, pickup_date, pickup_time,
                 service, weight, service_price, delivery_charge, total_price,
                 payment_method, status, created_at
             )
             VALUES(?,?,?,?,?,?,?,?,?,?, 'Pending', ?)
         """, (
-            session["user_phone"],
-            order["address"],
-            order["pickup_date"],
-            order["pickup_time"],
-            order["service"],
-            order["weight"],
-            order["service_price"],
-            order["delivery_charge"],
-            order["total_price"],
-            payment_method,
+            user["id"],
+            pending["address"],
+            pending["pickup_date"],
+            pending["pickup_time"],
+            pending["service"],
+            pending["weight"],
+            pending["service_price"],
+            pending["delivery_charge"],
+            pending["total_price"],
+            method,
             created_at
         ))
         conn.commit()
-
         order_id = cur.lastrowid
         conn.close()
 
         session.pop("pending_order", None)
         flash("Order placed successfully!", "success")
-
-        # go directly to invoice
         return redirect(f"/invoice/{order_id}")
 
-    return render_template("payment.html", order=order)
+    return render_template("payment.html", order=pending)
 
 
-# -------- ORDERS --------
 @app.route("/orders")
 def orders():
-    if "user_phone" not in session:
+    user = get_logged_user()
+    if not user:
         return redirect("/login")
 
     conn = db()
@@ -280,19 +298,19 @@ def orders():
     cur.execute("""
         SELECT id, service, weight, total_price, status, pickup_date, pickup_time, payment_method
         FROM orders
-        WHERE user_phone=?
+        WHERE user_id=?
         ORDER BY id DESC
-    """, (session["user_phone"],))
+    """, (user["id"],))
     data = cur.fetchall()
     conn.close()
 
     return render_template("orders.html", orders=data)
 
 
-# -------- ORDER DETAILS --------
 @app.route("/orders/<int:order_id>")
 def order_details(order_id):
-    if "user_phone" not in session:
+    user = get_logged_user()
+    if not user:
         return redirect("/login")
 
     conn = db()
@@ -302,8 +320,8 @@ def order_details(order_id):
                service_price, delivery_charge, total_price,
                payment_method, status, created_at
         FROM orders
-        WHERE id=? AND user_phone=?
-    """, (order_id, session["user_phone"]))
+        WHERE id=? AND user_id=?
+    """, (order_id, user["id"]))
     row = cur.fetchone()
     conn.close()
 
@@ -314,14 +332,11 @@ def order_details(order_id):
     return render_template("order_details.html", order=row)
 
 
-# -------- INVOICE / BILL PAGE --------
 @app.route("/invoice/<int:order_id>")
 def invoice(order_id):
-    if "user_phone" not in session:
+    user = get_logged_user()
+    if not user:
         return redirect("/login")
-
-    phone = session["user_phone"]
-    name = get_user_name(phone)
 
     conn = db()
     cur = conn.cursor()
@@ -330,8 +345,8 @@ def invoice(order_id):
                service_price, delivery_charge, total_price,
                payment_method, status, created_at
         FROM orders
-        WHERE id=? AND user_phone=?
-    """, (order_id, phone))
+        WHERE id=? AND user_id=?
+    """, (order_id, user["id"]))
     row = cur.fetchone()
     conn.close()
 
@@ -339,15 +354,15 @@ def invoice(order_id):
         flash("Invoice not found!", "danger")
         return redirect("/orders")
 
-    return render_template("invoice.html", order=row, name=name, phone=phone)
+    return render_template("invoice.html", order=row, name=user["name"], phone=user["phone"])
 
 
-# -------- ADMIN LOGIN --------
+# ---------------- ADMIN ----------------
 @app.route("/admin/login", methods=["GET", "POST"])
 def admin_login():
     if request.method == "POST":
-        username = request.form["username"].strip()
-        password = request.form["password"].strip()
+        username = request.form.get("username", "").strip()
+        password = request.form.get("password", "").strip()
 
         if username == "admin" and password == "admin123":
             session["admin"] = True
@@ -360,6 +375,13 @@ def admin_login():
     return render_template("admin_login.html")
 
 
+@app.route("/admin/logout")
+def admin_logout():
+    session.pop("admin", None)
+    flash("Admin logged out.", "success")
+    return redirect("/")
+
+
 @app.route("/admin/panel")
 def admin_panel():
     if not session.get("admin"):
@@ -368,14 +390,16 @@ def admin_panel():
     conn = db()
     cur = conn.cursor()
     cur.execute("""
-        SELECT id, user_phone, service, weight, total_price, payment_method, status, pickup_date, pickup_time, address
-        FROM orders
-        ORDER BY id DESC
+        SELECT o.id, u.phone AS user_phone, o.service, o.weight, o.total_price,
+               o.payment_method, o.status, o.pickup_date, o.pickup_time, o.address
+        FROM orders o
+        JOIN users u ON u.id = o.user_id
+        ORDER BY o.id DESC
     """)
-    orders = cur.fetchall()
+    data = cur.fetchall()
     conn.close()
 
-    return render_template("admin_panel.html", orders=orders)
+    return render_template("admin_panel.html", orders=data)
 
 
 @app.route("/admin/update/<int:order_id>", methods=["POST"])
@@ -383,7 +407,7 @@ def admin_update(order_id):
     if not session.get("admin"):
         return redirect("/admin/login")
 
-    new_status = request.form["status"].strip()
+    new_status = request.form.get("status", "Pending").strip()
 
     conn = db()
     cur = conn.cursor()
@@ -395,21 +419,7 @@ def admin_update(order_id):
     return redirect("/admin/panel")
 
 
-@app.route("/admin/logout")
-def admin_logout():
-    session.pop("admin", None)
-    flash("Admin logged out.", "success")
-    return redirect("/")
-
-
-@app.route("/logout")
-def logout():
-    session.clear()
-    flash("Logged out successfully.", "success")
-    return redirect("/")
-
-
-# ---------- RUN ----------
+# ---------------- RUN ----------------
 if __name__ == "__main__":
     init_db()
     app.run(debug=True)
