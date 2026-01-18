@@ -1,0 +1,43 @@
+{% extends "base.html" %}
+{% block body %}
+<div class="card">
+  <div class="title">My Orders</div>
+  <div class="subtitle">Track your order status here.</div>
+
+  <table class="table">
+    <tr>
+      <th>ID</th>
+      <th>Service</th>
+      <th>Weight</th>
+      <th>Total</th>
+      <th>Status</th>
+      <th>Pickup</th>
+      <th>Payment</th>
+      <th>Details</th>
+    </tr>
+
+    {% for o in orders %}
+    <tr>
+      <td>#{{ o[0] }}</td>
+      <td>{{ o[1] }}</td>
+      <td>{{ o[2] }} kg</td>
+      <td>₹{{ o[3] }}</td>
+
+      <td>
+        {% if o[4] == "Pending" %}
+          <span class="badge pending">Pending</span>
+        {% elif o[4] == "Picked" %}
+          <span class="badge picked">Picked</span>
+        {% else %}
+          <span class="badge delivered">Delivered</span>
+        {% endif %}
+      </td>
+
+      <td>{{ o[5] }} {{ o[6] }}</td>
+      <td>{{ o[7] }}</td>
+      <td><a class="btn btn2" href="/orders/{{ o[0] }}">View</a></td>
+    </tr>
+    {% endfor %}
+  </table>
+</div>
+{% endblock %}

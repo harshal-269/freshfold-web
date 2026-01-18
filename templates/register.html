@@ -1,0 +1,15 @@
+{% extends "base.html" %}
+{% block body %}
+<div class="card">
+  <div class="title">Create Account</div>
+  <div class="subtitle">Register to start booking laundry pickup.</div>
+
+  <form class="form" method="POST">
+    <input class="input" name="name" placeholder="Full Name" required>
+    <input class="input" name="phone" placeholder="Phone Number" required>
+    <input class="input" name="password" type="password" placeholder="Password" required>
+    <button class="btn" type="submit">Register</button>
+    <a class="btn btn2" href="/login">Already have account? Login</a>
+  </form>
+</div>
+{% endblock %}

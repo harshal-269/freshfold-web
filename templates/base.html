@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>{{ title if title else "FreshFold" }}</title>
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+  <!-- Google Font -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800;900&display=swap" rel="stylesheet">
+
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+
+<div class="topbar">
+  <div class="brand">
+    <span class="brand-badge"></span>
+    FreshFold
+  </div>
+
+  <div class="toplinks">
+    {% if session.get("user_phone") %}
+      <a href="/dashboard">Dashboard</a>
+      <a href="/orders">Orders</a>
+      <a href="/logout">Logout</a>
+    {% else %}
+      <a href="/login">Login</a>
+      <a href="/register">Register</a>
+    {% endif %}
+
+    <a href="/admin/login" class="adminLink">Admin</a>
+  </div>
+</div>
+
+<div class="page">
+  {% if session.get("user_phone") %}
+  <div class="sidebar">
+    <div class="sb-title">MENU</div>
+    <a href="/dashboard">🏠 Home</a>
+    <a href="/book">📦 Book Pickup</a>
+    <a href="/orders">🧾 My Orders</a>
+    <a href="/logout">🚪 Logout</a>
+  </div>
+  {% endif %}
+
+  <div class="content">
+    {% with messages = get_flashed_messages(with_categories=true) %}
+      {% if messages %}
+        {% for category, msg in messages %}
+          <div class="alert {{ category }}">{{ msg }}</div>
+        {% endfor %}
+      {% endif %}
+    {% endwith %}
+
+    {% block body %}{% endblock %}
+  </div>
+</div>
+
+</body>
+</html>

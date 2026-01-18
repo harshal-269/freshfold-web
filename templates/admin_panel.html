@@ -1,0 +1,61 @@
+{% extends "base.html" %}
+{% block body %}
+<div class="card">
+  <div class="title">Admin Panel</div>
+  <div class="subtitle">Manage all orders & update status.</div>
+
+  <div class="row">
+    <a class="btn btn2" href="/admin/logout">🚪 Logout Admin</a>
+  </div>
+
+  <table class="table">
+    <tr>
+      <th>ID</th>
+      <th>User</th>
+      <th>Service</th>
+      <th>Weight</th>
+      <th>Total</th>
+      <th>Payment</th>
+      <th>Status</th>
+      <th>Pickup</th>
+      <th>Address</th>
+      <th>Update</th>
+    </tr>
+
+    {% for o in orders %}
+    <tr>
+      <td>#{{ o[0] }}</td>
+      <td>{{ o[1] }}</td>
+      <td>{{ o[2] }}</td>
+      <td>{{ o[3] }} kg</td>
+      <td>₹{{ o[4] }}</td>
+      <td>{{ o[5] }}</td>
+
+      <td>
+        {% if o[6] == "Pending" %}
+          <span class="badge pending">Pending</span>
+        {% elif o[6] == "Picked" %}
+          <span class="badge picked">Picked</span>
+        {% else %}
+          <span class="badge delivered">Delivered</span>
+        {% endif %}
+      </td>
+
+      <td>{{ o[7] }} {{ o[8] }}</td>
+      <td>{{ o[9] }}</td>
+
+      <td>
+        <form method="POST" action="/admin/update/{{ o[0] }}" class="row">
+          <select name="status">
+            <option {% if o[6]=="Pending" %}selected{% endif %}>Pending</option>
+            <option {% if o[6]=="Picked" %}selected{% endif %}>Picked</option>
+            <option {% if o[6]=="Delivered" %}selected{% endif %}>Delivered</option>
+          </select>
+          <button class="btn" type="submit">Update</button>
+        </form>
+      </td>
+    </tr>
+    {% endfor %}
+  </table>
+</div>
+{% endblock %}

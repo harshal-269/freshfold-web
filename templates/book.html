@@ -1,0 +1,31 @@
+{% extends "base.html" %}
+{% block body %}
+<div class="card">
+  <div class="title">Book Laundry Pickup</div>
+  <div class="subtitle">Fill pickup details and continue to payment.</div>
+
+  <form class="form" method="POST">
+    <input class="input" name="address" placeholder="Pickup Address" required>
+
+    <input class="input" name="pickup_date" placeholder="Pickup Date (DD-MM-YYYY)" required>
+
+    <input class="input" name="pickup_time" placeholder="Pickup Time (e.g. 6:30 PM)" required>
+
+    <select name="service" required>
+      <option>Wash</option>
+      <option>Wash + Iron</option>
+      <option>Dry Clean</option>
+    </select>
+
+    <input class="input" name="weight" placeholder="Weight (kg) e.g. 3" required>
+
+    <button class="btn" type="submit">Continue to Payment</button>
+  </form>
+</div>
+
+<div class="card soft">
+  <div class="subtitle">
+    Pricing is calculated based on weight + delivery charges.
+  </div>
+</div>
+{% endblock %}

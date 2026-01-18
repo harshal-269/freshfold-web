@@ -1,0 +1,34 @@
+{% extends "base.html" %}
+{% block body %}
+<div class="card">
+  <div class="title">Dashboard</div>
+  <div class="subtitle">Welcome back, <b>{{ name }}</b> 👋</div>
+
+  <div class="grid">
+    <div class="stat">
+      <h2>Total Orders</h2>
+      <p>{{ total }}</p>
+    </div>
+    <div class="stat">
+      <h2>Pending</h2>
+      <p>{{ pending }}</p>
+    </div>
+    <div class="stat">
+      <h2>Delivered</h2>
+      <p>{{ delivered }}</p>
+    </div>
+  </div>
+
+  <br>
+  <div class="row">
+    <a class="btn" href="/book">📦 Book Pickup</a>
+    <a class="btn btn2" href="/orders">🧾 View Orders</a>
+  </div>
+</div>
+
+<div class="card soft">
+  <div class="subtitle">
+    Tip: Keep your pickup address correct for faster delivery 🚀
+  </div>
+</div>
+{% endblock %}

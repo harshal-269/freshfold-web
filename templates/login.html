@@ -1,0 +1,14 @@
+{% extends "base.html" %}
+{% block body %}
+<div class="card">
+  <div class="title">Login</div>
+  <div class="subtitle">Welcome back! Login to continue.</div>
+
+  <form class="form" method="POST">
+    <input class="input" name="phone" placeholder="Phone Number" required>
+    <input class="input" name="password" type="password" placeholder="Password" required>
+    <button class="btn" type="submit">Login</button>
+    <a class="btn btn2" href="/register">New user? Register</a>
+  </form>
+</div>
+{% endblock %}

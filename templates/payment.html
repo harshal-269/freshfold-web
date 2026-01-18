@@ -1,0 +1,28 @@
+{% extends "base.html" %}
+{% block body %}
+<div class="card">
+  <div class="title">Payment</div>
+  <div class="subtitle">Confirm bill & choose payment method.</div>
+
+  <div class="card soft">
+    <div class="subtitle">
+      <b>Service:</b> {{ order.service }} <br><br>
+      <b>Weight:</b> {{ order.weight }} kg <br><br>
+      <b>Service Price:</b> ₹{{ order.service_price }} <br>
+      <b>Delivery Charge:</b> ₹{{ order.delivery_charge }} <br><br>
+      <b>Total:</b> ₹{{ order.total_price }}
+    </div>
+  </div>
+
+  <form class="form" method="POST">
+    <select name="payment_method" required>
+      <option>Cash on Delivery</option>
+      <option>UPI</option>
+      <option>Card</option>
+    </select>
+
+    <button class="btn" type="submit">Confirm & Place Order</button>
+    <a class="btn btn2" href="/book">⬅ Back</a>
+  </form>
+</div>
+{% endblock %}
