@@ -3,8 +3,7 @@
 <div class="card">
   <div class="title">My Orders</div>
   <div class="subtitle">
-    Track your order status here.  
-    <br><br>
+    Track your order status here. <br><br>
     🔄 Auto refresh is ON (every 5 seconds)
   </div>
 
@@ -18,6 +17,7 @@
       <th>Pickup</th>
       <th>Payment</th>
       <th>Details</th>
+      <th>Invoice</th>
     </tr>
 
     {% for o in orders %}
@@ -39,14 +39,15 @@
 
       <td>{{ o[5] }} {{ o[6] }}</td>
       <td>{{ o[7] }}</td>
+
       <td><a class="btn btn2" href="/orders/{{ o[0] }}">View</a></td>
+      <td><a class="btn" href="/invoice/{{ o[0] }}">Invoice</a></td>
     </tr>
     {% endfor %}
   </table>
 </div>
 
 <script>
-  // Auto refresh every 5 seconds
   setTimeout(() => {
     window.location.reload();
   }, 5000);

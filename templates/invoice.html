@@ -1,0 +1,37 @@
+{% extends "base.html" %}
+{% block body %}
+<div class="card">
+  <div class="title">Invoice #{{ order[0] }}</div>
+  <div class="subtitle">FreshFold Bill Summary</div>
+
+  <div class="card soft">
+    <div class="subtitle">
+      <b>Customer Name:</b> {{ name }} <br>
+      <b>Phone:</b> {{ phone }} <br><br>
+
+      <b>Pickup Address:</b><br>
+      {{ order[1] }} <br><br>
+
+      <b>Pickup Date:</b> {{ order[2] }} <br>
+      <b>Pickup Time:</b> {{ order[3] }} <br><br>
+
+      <b>Service:</b> {{ order[4] }} <br>
+      <b>Weight:</b> {{ order[5] }} kg <br><br>
+
+      <b>Service Price:</b> ₹{{ order[6] }} <br>
+      <b>Delivery Charge:</b> ₹{{ order[7] }} <br><br>
+
+      <b>Total Amount:</b> ₹{{ order[8] }} <br><br>
+
+      <b>Payment Method:</b> {{ order[9] }} <br>
+      <b>Status:</b> {{ order[10] }} <br>
+      <b>Created At:</b> {{ order[11] }}
+    </div>
+  </div>
+
+  <div class="row">
+    <a class="btn btn2" href="/orders">⬅ Back to Orders</a>
+    <button class="btn" onclick="window.print()">🖨 Print Invoice</button>
+  </div>
+</div>
+{% endblock %}

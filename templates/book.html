@@ -2,10 +2,10 @@
 {% block body %}
 <div class="card">
   <div class="title">Book Laundry Pickup</div>
-  <div class="subtitle">Fill pickup details and continue to payment.</div>
+  <div class="subtitle">Your last address is auto-filled for faster booking.</div>
 
   <form class="form" method="POST">
-    <input class="input" name="address" placeholder="Pickup Address" required>
+    <input class="input" name="address" placeholder="Pickup Address" required value="{{ last_address }}">
 
     <input class="input" name="pickup_date" placeholder="Pickup Date (DD-MM-YYYY)" required>
 
@@ -21,11 +21,5 @@
 
     <button class="btn" type="submit">Continue to Payment</button>
   </form>
-</div>
-
-<div class="card soft">
-  <div class="subtitle">
-    Pricing is calculated based on weight + delivery charges.
-  </div>
 </div>
 {% endblock %}
