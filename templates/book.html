@@ -2,13 +2,24 @@
 {% block body %}
 <div class="card">
   <div class="title">Book Laundry Pickup</div>
-  <div class="subtitle">Your last address is auto-filled for faster booking.</div>
+  <div class="subtitle">Choose saved address or type new one.</div>
+
+  {% if saved_addresses and saved_addresses|length > 0 %}
+  <div class="card soft">
+    <div class="subtitle"><b>Saved Addresses</b></div>
+
+    <select class="input" id="savedAddressSelect" onchange="fillAddress()">
+      <option value="">-- Select saved address --</option>
+      {% for a in saved_addresses %}
+        <option value="{{ a['address'] }}">{{ a['label'] }} - {{ a['address'] }}</option>
+      {% endfor %}
+    </select>
+  </div>
+  {% endif %}
 
   <form class="form" method="POST">
-    <input class="input" name="address" placeholder="Pickup Address" required value="{{ last_address }}">
-
+    <input class="input" id="addressInput" name="address" placeholder="Pickup Address" required value="{{ last_address }}">
     <input class="input" name="pickup_date" placeholder="Pickup Date (DD-MM-YYYY)" required>
-
     <input class="input" name="pickup_time" placeholder="Pickup Time (e.g. 6:30 PM)" required>
 
     <select name="service" required>
@@ -18,8 +29,28 @@
     </select>
 
     <input class="input" name="weight" placeholder="Weight (kg) e.g. 3" required>
-
     <button class="btn" type="submit">Continue to Payment</button>
   </form>
 </div>
+
+<div class="card soft">
+  <div class="subtitle"><b>Save New Address</b></div>
+
+  <form class="form" method="POST" action="/address/add">
+    <input class="input" name="label" placeholder="Label (Home / Hostel / Office)" required>
+    <input class="input" name="address" placeholder="Full Address" required>
+    <button class="btn" type="submit">Save Address</button>
+  </form>
+</div>
+
+<script>
+  function fillAddress(){
+    const select = document.getElementById("savedAddressSelect");
+    const input = document.getElementById("addressInput");
+    if(select && input && select.value){
+      input.value = select.value;
+    }
+  }
+</script>
+
 {% endblock %}

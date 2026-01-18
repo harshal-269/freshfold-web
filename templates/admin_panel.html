@@ -2,7 +2,41 @@
 {% block body %}
 <div class="card">
   <div class="title">Admin Panel</div>
-  <div class="subtitle">Manage all orders & update status.</div>
+  <div class="subtitle">Revenue analytics + manage orders.</div>
+
+  <div class="grid">
+    <div class="stat">
+      <h2>Total Orders</h2>
+      <p>{{ total_orders }}</p>
+    </div>
+    <div class="stat">
+      <h2>Pending</h2>
+      <p>{{ pending_orders }}</p>
+    </div>
+    <div class="stat">
+      <h2>Delivered</h2>
+      <p>{{ delivered_orders }}</p>
+    </div>
+  </div>
+
+  <br>
+
+  <div class="grid">
+    <div class="stat">
+      <h2>Cancelled</h2>
+      <p>{{ cancelled_orders }}</p>
+    </div>
+    <div class="stat">
+      <h2>Total Revenue</h2>
+      <p>₹{{ revenue }}</p>
+    </div>
+    <div class="stat">
+      <h2>Admin</h2>
+      <p>Active</p>
+    </div>
+  </div>
+
+  <br>
 
   <div class="row">
     <a class="btn btn2" href="/admin/logout">🚪 Logout Admin</a>
@@ -19,37 +53,30 @@
       <th>Status</th>
       <th>Pickup</th>
       <th>Address</th>
+      <th>Created</th>
       <th>Update</th>
     </tr>
 
     {% for o in orders %}
     <tr>
-      <td>#{{ o[0] }}</td>
-      <td>{{ o[1] }}</td>
-      <td>{{ o[2] }}</td>
-      <td>{{ o[3] }} kg</td>
-      <td>₹{{ o[4] }}</td>
-      <td>{{ o[5] }}</td>
+      <td>#{{ o["id"] }}</td>
+      <td>{{ o["user_phone"] }}</td>
+      <td>{{ o["service"] }}</td>
+      <td>{{ o["weight"] }} kg</td>
+      <td>₹{{ o["total_price"] }}</td>
+      <td>{{ o["payment_method"] }}</td>
+      <td>{{ o["status"] }}</td>
+      <td>{{ o["pickup_date"] }} {{ o["pickup_time"] }}</td>
+      <td>{{ o["address"] }}</td>
+      <td>{{ o["created_at"] }}</td>
 
       <td>
-        {% if o[6] == "Pending" %}
-          <span class="badge pending">Pending</span>
-        {% elif o[6] == "Picked" %}
-          <span class="badge picked">Picked</span>
-        {% else %}
-          <span class="badge delivered">Delivered</span>
-        {% endif %}
-      </td>
-
-      <td>{{ o[7] }} {{ o[8] }}</td>
-      <td>{{ o[9] }}</td>
-
-      <td>
-        <form method="POST" action="/admin/update/{{ o[0] }}" class="row">
+        <form method="POST" action="/admin/update/{{ o['id'] }}" class="row">
           <select name="status">
-            <option {% if o[6]=="Pending" %}selected{% endif %}>Pending</option>
-            <option {% if o[6]=="Picked" %}selected{% endif %}>Picked</option>
-            <option {% if o[6]=="Delivered" %}selected{% endif %}>Delivered</option>
+            <option {% if o["status"]=="Pending" %}selected{% endif %}>Pending</option>
+            <option {% if o["status"]=="Picked" %}selected{% endif %}>Picked</option>
+            <option {% if o["status"]=="Delivered" %}selected{% endif %}>Delivered</option>
+            <option {% if o["status"]=="Cancelled" %}selected{% endif %}>Cancelled</option>
           </select>
           <button class="btn" type="submit">Update</button>
         </form>

@@ -32,8 +32,10 @@
           <span class="badge pending">Pending</span>
         {% elif o[4] == "Picked" %}
           <span class="badge picked">Picked</span>
-        {% else %}
+        {% elif o[4] == "Delivered" %}
           <span class="badge delivered">Delivered</span>
+        {% else %}
+          <span class="badge pending">Cancelled</span>
         {% endif %}
       </td>
 

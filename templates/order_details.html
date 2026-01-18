@@ -25,7 +25,13 @@
 
   <div class="row">
     <a class="btn btn2" href="/orders">⬅ Back to Orders</a>
-    <a class="btn" href="/book">📦 Book Again</a>
+    <a class="btn" href="/invoice/{{ order[0] }}">🧾 Invoice</a>
+
+    {% if order[10] == "Pending" %}
+    <form method="POST" action="/orders/{{ order[0] }}/cancel">
+      <button class="btn btn2" type="submit">❌ Cancel Order</button>
+    </form>
+    {% endif %}
   </div>
 </div>
 {% endblock %}

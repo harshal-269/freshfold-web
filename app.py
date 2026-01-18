@@ -18,10 +18,9 @@ def db():
 def init_db():
     conn = db()
     cur = conn.cursor()
-
-    # Enable foreign keys in SQLite
     cur.execute("PRAGMA foreign_keys = ON;")
 
+    # USERS
     cur.execute("""
         CREATE TABLE IF NOT EXISTS users(
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -32,6 +31,19 @@ def init_db():
         )
     """)
 
+    # ADDRESSES (multiple saved addresses)
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS addresses(
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER NOT NULL,
+            label TEXT NOT NULL,
+            address TEXT NOT NULL,
+            created_at TEXT NOT NULL,
+            FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
+        )
+    """)
+
+    # ORDERS
     cur.execute("""
         CREATE TABLE IF NOT EXISTS orders(
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -51,11 +63,11 @@ def init_db():
         )
     """)
 
-    # Indexes (performance)
+    # Indexes
     cur.execute("CREATE INDEX IF NOT EXISTS idx_users_phone ON users(phone);")
     cur.execute("CREATE INDEX IF NOT EXISTS idx_orders_user_id ON orders(user_id);")
     cur.execute("CREATE INDEX IF NOT EXISTS idx_orders_status ON orders(status);")
-    cur.execute("CREATE INDEX IF NOT EXISTS idx_orders_created_at ON orders(created_at);")
+    cur.execute("CREATE INDEX IF NOT EXISTS idx_addresses_user_id ON addresses(user_id);")
 
     conn.commit()
     conn.close()
@@ -106,6 +118,20 @@ def get_user_stats(user_id):
 
     conn.close()
     return total, pending, delivered
+
+
+def get_saved_addresses(user_id):
+    conn = db()
+    cur = conn.cursor()
+    cur.execute("""
+        SELECT id, label, address
+        FROM addresses
+        WHERE user_id=?
+        ORDER BY id DESC
+    """, (user_id,))
+    rows = cur.fetchall()
+    conn.close()
+    return rows
 
 
 def get_last_address(user_id):
@@ -195,6 +221,36 @@ def dashboard():
     return render_template("dashboard.html", name=user["name"], total=total, pending=pending, delivered=delivered)
 
 
+# -------- ADD ADDRESS --------
+@app.route("/address/add", methods=["POST"])
+def add_address():
+    user = get_logged_user()
+    if not user:
+        return redirect("/login")
+
+    label = request.form.get("label", "").strip()
+    address = request.form.get("address", "").strip()
+
+    if not label or not address:
+        flash("Address label and address are required!", "danger")
+        return redirect("/book")
+
+    created_at = datetime.now().strftime("%d-%m-%Y %I:%M %p")
+
+    conn = db()
+    cur = conn.cursor()
+    cur.execute("""
+        INSERT INTO addresses(user_id, label, address, created_at)
+        VALUES(?,?,?,?)
+    """, (user["id"], label, address, created_at))
+    conn.commit()
+    conn.close()
+
+    flash("Address saved successfully!", "success")
+    return redirect("/book")
+
+
+# -------- BOOK --------
 @app.route("/book", methods=["GET", "POST"])
 def book():
     user = get_logged_user()
@@ -235,10 +291,13 @@ def book():
 
         return redirect("/payment")
 
+    # GET
+    saved_addresses = get_saved_addresses(user["id"])
     last_address = get_last_address(user["id"])
-    return render_template("book.html", last_address=last_address)
+    return render_template("book.html", saved_addresses=saved_addresses, last_address=last_address)
 
 
+# -------- PAYMENT --------
 @app.route("/payment", methods=["GET", "POST"])
 def payment():
     user = get_logged_user()
@@ -287,6 +346,7 @@ def payment():
     return render_template("payment.html", order=pending)
 
 
+# -------- ORDERS --------
 @app.route("/orders")
 def orders():
     user = get_logged_user()
@@ -307,6 +367,7 @@ def orders():
     return render_template("orders.html", orders=data)
 
 
+# -------- ORDER DETAILS --------
 @app.route("/orders/<int:order_id>")
 def order_details(order_id):
     user = get_logged_user()
@@ -332,6 +393,45 @@ def order_details(order_id):
     return render_template("order_details.html", order=row)
 
 
+# -------- CANCEL ORDER --------
+@app.route("/orders/<int:order_id>/cancel", methods=["POST"])
+def cancel_order(order_id):
+    user = get_logged_user()
+    if not user:
+        return redirect("/login")
+
+    conn = db()
+    cur = conn.cursor()
+
+    # only cancel if pending and belongs to user
+    cur.execute("""
+        SELECT status FROM orders
+        WHERE id=? AND user_id=?
+    """, (order_id, user["id"]))
+    row = cur.fetchone()
+
+    if not row:
+        conn.close()
+        flash("Order not found!", "danger")
+        return redirect("/orders")
+
+    if row["status"] != "Pending":
+        conn.close()
+        flash("Only Pending orders can be cancelled!", "danger")
+        return redirect(f"/orders/{order_id}")
+
+    cur.execute("""
+        UPDATE orders SET status='Cancelled'
+        WHERE id=? AND user_id=?
+    """, (order_id, user["id"]))
+    conn.commit()
+    conn.close()
+
+    flash("Order cancelled successfully!", "success")
+    return redirect("/orders")
+
+
+# -------- INVOICE --------
 @app.route("/invoice/<int:order_id>")
 def invoice(order_id):
     user = get_logged_user()
@@ -389,17 +489,44 @@ def admin_panel():
 
     conn = db()
     cur = conn.cursor()
+
+    # Orders list (with join)
     cur.execute("""
         SELECT o.id, u.phone AS user_phone, o.service, o.weight, o.total_price,
-               o.payment_method, o.status, o.pickup_date, o.pickup_time, o.address
+               o.payment_method, o.status, o.pickup_date, o.pickup_time, o.address, o.created_at
         FROM orders o
         JOIN users u ON u.id = o.user_id
         ORDER BY o.id DESC
     """)
-    data = cur.fetchall()
+    orders = cur.fetchall()
+
+    # Revenue analytics
+    cur.execute("SELECT COUNT(*) AS total_orders FROM orders")
+    total_orders = cur.fetchone()["total_orders"]
+
+    cur.execute("SELECT COUNT(*) AS pending_orders FROM orders WHERE status='Pending'")
+    pending_orders = cur.fetchone()["pending_orders"]
+
+    cur.execute("SELECT COUNT(*) AS delivered_orders FROM orders WHERE status='Delivered'")
+    delivered_orders = cur.fetchone()["delivered_orders"]
+
+    cur.execute("SELECT COUNT(*) AS cancelled_orders FROM orders WHERE status='Cancelled'")
+    cancelled_orders = cur.fetchone()["cancelled_orders"]
+
+    cur.execute("SELECT COALESCE(SUM(total_price), 0) AS revenue FROM orders WHERE status!='Cancelled'")
+    revenue = cur.fetchone()["revenue"]
+
     conn.close()
 
-    return render_template("admin_panel.html", orders=data)
+    return render_template(
+        "admin_panel.html",
+        orders=orders,
+        total_orders=total_orders,
+        pending_orders=pending_orders,
+        delivered_orders=delivered_orders,
+        cancelled_orders=cancelled_orders,
+        revenue=revenue
+    )
 
 
 @app.route("/admin/update/<int:order_id>", methods=["POST"])
