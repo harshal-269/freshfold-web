@@ -2,7 +2,11 @@
 {% block body %}
 <div class="card">
   <div class="title">My Orders</div>
-  <div class="subtitle">Track your order status here.</div>
+  <div class="subtitle">
+    Track your order status here.  
+    <br><br>
+    🔄 Auto refresh is ON (every 5 seconds)
+  </div>
 
   <table class="table">
     <tr>
@@ -40,4 +44,12 @@
     {% endfor %}
   </table>
 </div>
+
+<script>
+  // Auto refresh every 5 seconds
+  setTimeout(() => {
+    window.location.reload();
+  }, 5000);
+</script>
+
 {% endblock %}
